@@ -28,9 +28,6 @@ vendor/
 *.swp
 *.swo
 
-# Dependency metadata
-go.sum
-
 # OS Junk
 Thumbs.db
 

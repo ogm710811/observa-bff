@@ -44,7 +44,7 @@ Resources:
       FunctionName: !Sub observa-bff${EnvSuffix}
       Handler: bootstrap
       Role: !GetAtt ObservaBffLambdaRole.Arn
-      Runtime: go1.x
+      Runtime: provided.al2023
       MemorySize: 128
       Timeout: 10
       Code:

@@ -6,8 +6,6 @@ on:
   pull_request:
 
 env:
-  AWS_REGION: us-east-1
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   LAMBDA_ZIP_KEY: lambda/bootstrap.zip
   TEMPLATE_FILE: infra/observa-bff-lambda.yaml
 
@@ -69,11 +67,11 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Upload Lambda artifact to S3
         run: |
-          S3_BUCKET="observa-bff-artifacts-${{ env.AWS_ACCOUNT_ID }}-${{ env.AWS_REGION }}${{ env.ENV_SUFFIX }}"
+          S3_BUCKET="observa-bff-artifacts-${{ env.ENV_SUFFIX }}"
           aws s3 mb s3://${S3_BUCKET} || true
           aws s3 cp lambda/bootstrap.zip s3://${S3_BUCKET}/${{ env.LAMBDA_ZIP_KEY }}
           echo "S3_BUCKET=${S3_BUCKET}" >> $GITHUB_ENV
