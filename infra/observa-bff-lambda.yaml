@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Observa BFF Lambda Stack – PR/Ephem env aware
+
+Parameters:
+  LambdaS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+  LambdaS3Key:
+    Type: String
+    Description: S3 key for the Lambda deployment package
+  EnvSuffix:
+    Type: String
+    Default: ''
+    Description: (optional) Stack/bucket/function env/PR suffix
+
+Resources:
+  ObservaBffLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub observa-bff-lambda-role${EnvSuffix}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: basic-lambda-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+
+  ObservaBffLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub observa-bff${EnvSuffix}
+      Handler: bootstrap
+      Role: !GetAtt ObservaBffLambdaRole.Arn
+      Runtime: go1.x
+      MemorySize: 128
+      Timeout: 10
+      Code:
+        S3Bucket: !Ref LambdaS3Bucket
+        S3Key: !Ref LambdaS3Key
+
+Outputs:
+  LambdaFunctionName:
+    Value: !Ref ObservaBffLambda
+    Description: Name of deployed Lambda function
+  RoleArn:
+    Value: !GetAtt ObservaBffLambdaRole.Arn
+    Description: Lambda execution role ARN

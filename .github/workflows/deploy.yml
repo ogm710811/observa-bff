@@ -1,0 +1,97 @@
+name: Build & Deploy (with PR/preview envs)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  LAMBDA_ZIP_KEY: lambda/bootstrap.zip
+  TEMPLATE_FILE: infra/observa-bff-lambda.yaml
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-template:
+    name: Validate CloudFormation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - run: pip install cfn-lint
+      - run: cfn-lint ${{ env.TEMPLATE_FILE }}
+
+  deploy:
+    name: Build & Deploy Lambda
+    needs: [ validate-template ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set Environment Suffix Using PR Number
+        id: suffix
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            PR_NUMBER=$(jq --raw-output .number "$GITHUB_EVENT_PATH")
+            echo "ENV_SUFFIX=-pr-${PR_NUMBER}" >> $GITHUB_ENV
+            echo "env_suffix=-pr-${PR_NUMBER}" >> $GITHUB_OUTPUT
+          else
+            echo "ENV_SUFFIX=" >> $GITHUB_ENV
+            echo "env_suffix=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build Go Lambda (Linux)
+        run: |
+          cd cmd/observa-bff
+          GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+          cd ../..
+
+      - name: Zip Lambda binary
+        run: |
+          mkdir -p lambda
+          cp cmd/observa-bff/bootstrap lambda/
+          cd lambda && zip -r bootstrap.zip bootstrap
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload Lambda artifact to S3
+        run: |
+          S3_BUCKET="observa-bff-artifacts-${{ env.AWS_ACCOUNT_ID }}-${{ env.AWS_REGION }}${{ env.ENV_SUFFIX }}"
+          aws s3 mb s3://${S3_BUCKET} || true
+          aws s3 cp lambda/bootstrap.zip s3://${S3_BUCKET}/${{ env.LAMBDA_ZIP_KEY }}
+          echo "S3_BUCKET=${S3_BUCKET}" >> $GITHUB_ENV
+
+      - name: Deploy/Update CloudFormation stack
+        run: |
+          STACK_NAME="observa-bff-stack${{ env.ENV_SUFFIX }}"
+          aws cloudformation deploy \
+            --template-file ${{ env.TEMPLATE_FILE }} \
+            --stack-name ${STACK_NAME} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              LambdaS3Bucket=${S3_BUCKET} \
+              LambdaS3Key=${{ env.LAMBDA_ZIP_KEY }} \
+              EnvSuffix=${{ env.ENV_SUFFIX }} \
+            --no-fail-on-empty-changeset
+
+      - name: Output Lambda Function details
+        run: |
+          FUNC_NAME="observa-bff${{ env.ENV_SUFFIX }}"
+          aws lambda get-function --function-name ${FUNC_NAME} || echo "Function not found yet"

@@ -1,0 +1,60 @@
+# Binaries
+bootstrap
+lambda/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build artifacts
+*.out
+*.a
+*.o
+
+# Go modules cache
+/pkg/
+vendor/
+
+# Test cache & coverage
+*.test
+*.coverprofile
+*.cov
+*.log
+
+# Editor/project files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependency metadata
+go.sum
+
+# OS Junk
+Thumbs.db
+
+# Zip artifacts and release packages
+*.zip
+
+# AWS SAM/Serverless framework artifacts
+.aws-sam/
+.serverless/
+
+# Terraform, CloudFormation, AWS CLI state
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.template.json
+
+# Ignore sensitive & environment files
+.env
+.env.*
+
+# Node/npm (if SPA/frontend here too)
+node_modules/
+npm-debug.log*
+
+# Miscellaneous
+*.bak
+*~
